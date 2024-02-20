@@ -4,8 +4,15 @@ const TIMER_DELAY = 1000 * 30; // 30 seconds
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function showHistoricalData(api, app) {
-  const details = await api.getHistoricalData({
+function createApiClient() {
+  return new Client({
+    host: "127.0.0.1",
+    port: 4002,
+  });
+}
+
+async function showHistoricalData(app) {
+  const details = await app.api.getHistoricalData({
     contract: Contract.future({
       symbol: "MES",
       lastTradeDateOrContractMonth: "20240315",
@@ -30,17 +37,14 @@ function shutdown(app) {
 }
 
 async function run() {
-  let api = new Client({
-    host: "127.0.0.1",
-    port: 4002,
-  });
-  let time = await api.getCurrentTime();
-  console.log("current time: " + time);
-
   const app = {
     runNumber: 0,
     run: true,
+    api: createApiClient(),
   };
+  // let time = await app.api.getCurrentTime();
+  // console.log("current time: " + time);
+
   process.on("SIGINT", () => {
     shutdown(app);
   });
@@ -49,7 +53,13 @@ async function run() {
   });
 
   while (app.run) {
-    await showHistoricalData(api, app);
+    try {
+      await showHistoricalData(app);
+    } catch (e) {
+      const timeStr = new Date().toLocaleTimeString();
+      console.log(`${timeStr}, historical data error: ${e}`);
+      app.api = createApiClient();
+    }
     await sleep(TIMER_DELAY);
   }
   console.log("Runs: " + app.runNumber + " times");
